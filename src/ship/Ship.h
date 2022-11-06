@@ -22,7 +22,7 @@ public:
     float location[2];
     tm overhaul_start_date;
 
-    Ship(int id, const std::string &name, float carry_capacity, Port *homeport, ShipPurpose *purpose, // TODO: запилить деструкторы для всего чтобы в них удалялись поинтеры которые хранятся в векторах с поинтерами
+    Ship(int id, const std::string &name, float carry_capacity, Port *homeport, ShipPurpose *purpose,
          const std::vector<CrewMember *> &crew, float *location, const tm &overhaul_start_date);
 
     Cruise *get_current_cruise();

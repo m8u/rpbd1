@@ -17,8 +17,6 @@ public:
 class ShipPurposeMapper {
 public:
     static std::vector<ShipPurpose> get_all();
-    void insert(ShipPurpose);
-    void remove(ShipPurpose);
 };
 
 

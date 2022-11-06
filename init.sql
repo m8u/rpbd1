@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS "ship_port_entries"
     "departure_ts_actual" timestamp,
     "destination_delay_reason" varchar,
     "departure_delay_reason" varchar,
-    CONSTRAINT ship_port_entries_cruise_id_fkey FOREIGN KEY(cruise_id) REFERENCES cruises(id),
+    CONSTRAINT ship_port_entries_cruise_id_fkey FOREIGN KEY(cruise_id) REFERENCES cruises(id) ON DELETE CASCADE,
     CONSTRAINT ship_port_entries_port_id_fkey FOREIGN KEY(port_id) REFERENCES ports(id)
 );
 

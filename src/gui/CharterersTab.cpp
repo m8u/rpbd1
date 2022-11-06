@@ -1,5 +1,4 @@
 #include "gui.h"
-#include <iostream>
 #include <QWindow>
 #include <QFormLayout>
 #include <QLineEdit>

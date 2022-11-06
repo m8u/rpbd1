@@ -11,13 +11,14 @@ class PortEntry {
 public:
     int id;
     Port* port;
-    tm destination_ts_planned;
+    tm destination_ts_planned{};
     tm* destination_ts_actual;
-    tm departure_ts_planned;
+    tm departure_ts_planned{};
     tm* departure_ts_actual;
     std::string destination_delay_reason;
     std::string departure_delay_reason;
 
+    PortEntry();
     PortEntry(Port* port, tm destination_ts_planned, tm departure_ts_planned);
     PortEntry(int id, Port* port, tm destination_ts_planned, tm* destination_ts_actual, tm departure_ts_planned,
               tm* departure_ts_actual, std::string destination_delay_reason, std::string departure_delay_reason);

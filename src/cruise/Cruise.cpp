@@ -98,7 +98,11 @@ void CruiseMapper::insert(Cruise cruise) {
                 cruise.destination_port->id, cruise.charterer->id);
     } else {
         sprintf(stmt_str, "INSERT INTO cruises (id, ship_id, general_cargo_package_id, departure_port_id, "
-                          "destination_port_id, charterer_id) VALUES (%d, %d, %d, %d, %d, %d);",
+                          "destination_port_id, charterer_id) VALUES (%d, %d, %d, %d, %d, %d) "
+                          "ON CONFLICT (id) DO UPDATE SET ship_id=EXCLUDED.ship_id, "
+                          "general_cargo_package_id=EXCLUDED.general_cargo_package_id, "
+                          "departure_port_id=EXCLUDED.departure_port_id, destination_port_id=EXCLUDED.destination_port_id, "
+                          "charterer_id=EXCLUDED.charterer_id;",
                 cruise.id, cruise.ship->id, cruise.general_cargo_package_type->id, cruise.departure_port->id,
                 cruise.destination_port->id, cruise.charterer->id);
     }
@@ -130,5 +134,11 @@ void CruiseMapper::insert(Cruise cruise) {
 }
 
 void CruiseMapper::remove(Cruise &cruise) {
-
+    auto db = DB::get_instance();
+    char* stmt_str = new char[1024];
+    sprintf(stmt_str, "DELETE FROM cruises WHERE id=%d;", cruise.id);
+    auto ret = SQLExecDirectA(db->stmt_handle, (SQLCHAR*)stmt_str, SQL_NTS);
+    if (!SQL_SUCCEEDED(ret)) {
+        DB::extract_error("CruiseMapper::remove (2)", SQL_HANDLE_STMT, db->stmt_handle);
+    }
 }

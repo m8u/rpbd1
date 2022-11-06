@@ -1,6 +1,5 @@
 #include "gui.h"
 
-#include <iostream>
 #include <QWindow>
 #include <QFormLayout>
 #include <QLineEdit>
@@ -195,6 +194,7 @@ void edit_ship_window(QTableWidget* ships_table_widget, QFormLayout* ship_desc_l
 
         window->close();
         refill_ships_table(ships_table_widget);
+        ships_table_widget->selectRow(ships_table_widget->rowCount()-1);
         show_ship_description(ships_table_widget, ship_desc_layout);                                                                            // TODO: сделать также везде
     });
 
@@ -235,7 +235,7 @@ void show_ship_description(QTableWidget* ships_table_widget, QFormLayout* ship_d
 
     std::string crew_list;
     char* member_summary = new char[256];
-    if (ships.at(selected_row).crew.size() > 0) {
+    if (!ships.at(selected_row).crew.empty()) {
         for (const auto &member: ships.at(selected_row).crew) {
             sprintf(member_summary, "%.1s. %.1s. %s (%s)\n",
                     member->first_name.c_str(),

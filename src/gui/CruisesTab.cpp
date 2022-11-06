@@ -1,6 +1,5 @@
 #include "gui.h"
 
-#include <iostream>
 #include <vector>
 #include <QWindow>
 #include <QFormLayout>
@@ -11,6 +10,7 @@
 #include <QCompleter>
 #include <QSpinBox>
 #include <QListWidget>
+#include <QTextEdit>
 
 #include "../cruise/Cruise.h"
 #include "../ship/Ship.h"
@@ -18,6 +18,8 @@
 
 #include "../globals.h"
 
+
+void show_cruise_description(QTableWidget* cruises_table_widget, QFormLayout* cruise_desc_layout);
 
 void refill_cruises_table(QTableWidget* cruises_table_widget) {
     cruises = CruiseMapper::get_all();
@@ -34,7 +36,7 @@ void refill_cruises_table(QTableWidget* cruises_table_widget) {
     cruises_table_widget->resizeColumnsToContents();
 }
 
-void edit_cruise_window(QTableWidget* cruises_table_widget, Cruise* cruise = nullptr) {
+void edit_cruise_window(QTableWidget* cruises_table_widget, QFormLayout* cruise_desc_layout, Cruise* cruise = nullptr) {
     auto *window = new QWidget;
     window->setMinimumSize(500, 200);
     window->setWindowTitle(cruise == nullptr ? "New cruise" : "Edit cruise");
@@ -75,7 +77,7 @@ void edit_cruise_window(QTableWidget* cruises_table_widget, Cruise* cruise = nul
 
     auto port_entries_field = new QGridLayout;
     auto port_entries_list_widget = new QListWidget;
-    std::vector<PortEntry>* new_port_entries = new std::vector<PortEntry>();
+    auto* new_port_entries = new std::vector<PortEntry>();
     auto port_entry_add_button = new QPushButton("+");
     auto port_entry_remove_button = new QPushButton("-");
     port_entries_field->addWidget(port_entries_list_widget, 0, 0, 7, 8);
@@ -182,10 +184,74 @@ void edit_cruise_window(QTableWidget* cruises_table_widget, Cruise* cruise = nul
         window->close();
         port_entries = PortEntryMapper::get_all();
         refill_cruises_table(cruises_table_widget);
+        cruises_table_widget->selectRow(cruises_table_widget->rowCount()-1);
+        show_cruise_description(cruises_table_widget, cruise_desc_layout);
     });
 
     grid_layout->addLayout(form_layout, 0, 0, 9, 2);
     grid_layout->addWidget(apply_button, 10, 0, 1, 1);
+
+    window->show();
+}
+
+void update_route_window(QTableWidget* cruises_table_widget, QFormLayout* cruise_desc_layout) {
+    auto *window = new QWidget;
+//    window->setMinimumSize(500, 200);
+    window->setWindowTitle("Route");
+
+    auto form_layout = new QFormLayout();
+    window->setLayout(form_layout);
+
+    auto entries = cruises.at(cruises_table_widget->currentRow()).port_entries;
+    bool is_destination = false;
+    PortEntry* entry;
+    for (int i = 0; i < entries.size(); i++) {
+        if ((entries.at(i)->destination_ts_actual == nullptr
+        && entries.at(i)->departure_ts_actual == nullptr)
+        || (entries.at(i)->destination_ts_actual != nullptr
+           && entries.at(i)->departure_ts_actual == nullptr)) {
+            entry = entries.at(i);
+            form_layout->addRow("Departure:",
+                                new QLabel(entry->port->name.c_str()));
+            break;
+        }
+        if (i+1 < entries.size() && entries.at(i+1)->destination_ts_actual == nullptr) {
+            entry = entries.at(i+1);
+            form_layout->addRow("Destination:",
+                                new QLabel(entries.at(i+1)->port->name.c_str()));
+            is_destination = true;
+            break;
+        }
+    }
+
+    auto delay_reason_text_field = new QTextEdit();
+    form_layout->addRow(is_destination ? "Destination delay reason" : "Departure delay reason",
+                        delay_reason_text_field);
+
+    auto update_button = new QPushButton("Update");
+    QPushButton::connect(update_button, &QPushButton::clicked, [=]() {
+        std::time_t time_t_now = std::time(0);
+        tm* tm_now = std::localtime(&time_t_now);
+        std::string delay_reason_text = delay_reason_text_field->toPlainText().toStdString();
+        PortEntryMapper::insert(PortEntry(
+                entry->id,
+                entry->port,
+                entry->destination_ts_planned,
+                is_destination || entry->destination_ts_actual == nullptr ?
+                                    tm_now : entry->destination_ts_actual,
+                entry->departure_ts_planned,
+                !is_destination ? tm_now : entry->departure_ts_actual,
+                is_destination ? delay_reason_text : entry->destination_delay_reason,
+                !is_destination ? delay_reason_text : entry->departure_delay_reason
+        ));
+
+        window->close();
+        port_entries = PortEntryMapper::get_all();
+        refill_cruises_table(cruises_table_widget);
+        cruises_table_widget->selectRow(cruises_table_widget->rowCount()-1);
+        show_cruise_description(cruises_table_widget, cruise_desc_layout);
+    });
+    form_layout->addRow(update_button);
 
     window->show();
 }
@@ -201,6 +267,7 @@ void show_cruise_description(QTableWidget* cruises_table_widget, QFormLayout* cr
 
     auto remove_button = new QPushButton("Remove");
     auto edit_button = new QPushButton("Edit...");
+    auto update_route_button = new QPushButton("Update route point...");
     QPushButton::connect(remove_button, &QPushButton::clicked, [=](){
         cruises_table_widget->clearSelection();
         CruiseMapper::remove(cruises.at(selected_row));
@@ -209,38 +276,78 @@ void show_cruise_description(QTableWidget* cruises_table_widget, QFormLayout* cr
         edit_button->setDisabled(true);
     });
     QPushButton::connect(edit_button, &QPushButton::clicked, [=](){
-        edit_cruise_window(cruises_table_widget, &cruises.at(selected_row));
+        edit_cruise_window(cruises_table_widget, cruise_desc_layout, &cruises.at(selected_row));
         show_cruise_description(cruises_table_widget, cruise_desc_layout);
+    });
+    QPushButton::connect(update_route_button, &QPushButton::clicked, [=]() {
+        update_route_window(cruises_table_widget, cruise_desc_layout);
     });
     auto buttons_layout = new QGridLayout;
     buttons_layout->addWidget(edit_button, 0, 1, 1, 1);
     buttons_layout->addWidget(remove_button, 0, 0, 1, 1);
+    buttons_layout->addWidget(update_route_button, 1, 0, 1, 2);
 
     cruise_desc_layout->addRow("Departure port:",
                                new QLabel(cruises.at(selected_row).departure_port->name.c_str()));
     cruise_desc_layout->addRow("Destination port:",
                                new QLabel(cruises.at(selected_row).destination_port->name.c_str()));
     cruise_desc_layout->addRow("Ship:",
-                               new QLabel(cruises.at(selected_row).ship->name.c_str()));               // TODO: hyperlink
+                               new QLabel(cruises.at(selected_row).ship->name.c_str()));
     cruise_desc_layout->addRow("General cargo:",
                                new QLabel(cruises.at(selected_row).general_cargo_package_type->name.c_str()));
     cruise_desc_layout->addRow("Charterer:",
-                               new QLabel(cruises.at(selected_row).charterer->name.c_str()));          // TODO: hyperlink
+                               new QLabel(cruises.at(selected_row).charterer->name.c_str()));
+
     auto current_cruise_port_entries = cruises.at(selected_row).port_entries;
-    std::string port_entries_list;
+    auto route_table = new QTableWidget(current_cruise_port_entries.size(), 8);
+    route_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    route_table->setSelectionMode(QAbstractItemView::NoSelection);
+    route_table->setHorizontalHeaderLabels(
+            QStringList({"Status", "Port", "Destination", "Destination (actual)",
+                         "Departure", "Departure (actual)", "Destination delay reason", "Departure delay reason"}));
+
+    char* destination_ts_planned = new char[17];
+    char* destination_ts_actual = new char[17];
+    char* departure_ts_planned = new char[17];
+    char* departure_ts_actual = new char[17];
     for (int i = 0; i < current_cruise_port_entries.size(); i++) {
-        port_entries_list += current_cruise_port_entries.at(i)->port->name;
+        route_table->setItem(i, 1, new QTableWidgetItem(current_cruise_port_entries.at(i)->port->name.c_str()));
         if (current_cruise_port_entries.at(i)->destination_ts_actual != nullptr
         && current_cruise_port_entries.at(i)->departure_ts_actual == nullptr) {
-            port_entries_list += " <----";
+            route_table->setItem(i, 0, new QTableWidgetItem("Arrived"));
+            if (i == current_cruise_port_entries.size()-1)
+                update_route_button->setDisabled(true);
         } else if (current_cruise_port_entries.at(i)->departure_ts_actual != nullptr
         && i+1 < current_cruise_port_entries.size() && current_cruise_port_entries.at(i+1)->destination_ts_actual == nullptr) {
-            port_entries_list += " ---->";
+            route_table->setItem(i, 0, new QTableWidgetItem("Departed"));
         }
-        port_entries_list += "\n";
+
+        strftime(destination_ts_planned, 17, "%Y-%m-%d %H:%M",
+                 &current_cruise_port_entries.at(i)->destination_ts_planned);
+        if (current_cruise_port_entries.at(i)->destination_ts_actual != nullptr)
+            strftime(destination_ts_actual, 17, "%Y-%m-%d %H:%M",
+                     current_cruise_port_entries.at(i)->destination_ts_actual);
+        else
+            strcpy(destination_ts_actual, "");
+        strftime(departure_ts_planned, 17, "%Y-%m-%d %H:%M",
+                 &current_cruise_port_entries.at(i)->departure_ts_planned);
+        if (current_cruise_port_entries.at(i)->departure_ts_actual != nullptr)
+            strftime(departure_ts_actual, 17, "%Y-%m-%d %H:%M",
+                     current_cruise_port_entries.at(i)->departure_ts_actual);
+        else
+            strcpy(departure_ts_actual, "");
+
+        route_table->setItem(i, 2, new QTableWidgetItem(destination_ts_planned));
+        route_table->setItem(i, 3, new QTableWidgetItem(destination_ts_actual));
+        route_table->setItem(i, 4, new QTableWidgetItem(departure_ts_planned));
+        route_table->setItem(i, 5, new QTableWidgetItem(departure_ts_actual));
+        route_table->setItem(i, 6, new QTableWidgetItem(
+                current_cruise_port_entries.at(i)->destination_delay_reason.c_str()));
+        route_table->setItem(i, 7, new QTableWidgetItem(
+                current_cruise_port_entries.at(i)->departure_delay_reason.c_str()));
     }
-    cruise_desc_layout->addRow("Port entries:",
-                               new QLabel(port_entries_list.c_str()));
+    route_table->resizeColumnsToContents();
+    cruise_desc_layout->addRow(route_table);
     cruise_desc_layout->addRow(buttons_layout);
 }
 
@@ -260,12 +367,12 @@ QWidget* cruises_widget() {
     general_cargo_package_types = GeneralCargoPackageTypeMapper::get_all();
     refill_cruises_table(cruises_table_widget);
 
+    auto *cruise_desc_layout = new QFormLayout;
+
     auto *new_button = new QPushButton("New cruise...");
     QPushButton::connect(new_button, &QPushButton::clicked, [=](){
-        edit_cruise_window(cruises_table_widget);
+        edit_cruise_window(cruises_table_widget, cruise_desc_layout);
     });
-
-    auto *cruise_desc_layout = new QFormLayout;
 
     QTableWidget::connect(cruises_table_widget, &QTableWidget::cellClicked, [=](){
         show_cruise_description(cruises_table_widget, cruise_desc_layout);
